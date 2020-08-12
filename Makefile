@@ -1,14 +1,15 @@
-RELAY_SOURCE=./cmd/localrelay
-LIGOLO_SOURCE=./cmd/ligolo
+CLIENT_SOURCE=./cmd/ligoloc
+SERVER_SOURCE=./cmd/ligolos
 TLS_CERT ?= 'certs/cert.pem'
-LDFLAGS="-s -w -X main.tlsFingerprint=$$(openssl x509 -fingerprint -sha256 -noout -in $(TLS_CERT) | cut -d '=' -f2)"
+LDFLAGSOLD="-s -w -X main.tlsFingerprint=$$(openssl x509 -fingerprint -sha256 -noout -in $(TLS_CERT) | cut -d '=' -f2)"
+LDFLAGS="-s -w"
 GCFLAGS="all=-trimpath=$GOPATH"
 
-RELAY_BINARY=localrelay
-LIGOLO_BINARY=ligolo
+CLIENT_BINARY=ligoloc
+SERVER_BINARY=ligolos
 TAGS=release
 
-OSARCH = "linux/amd64 linux/386 linux/arm windows/amd64 windows/386 darwin/amd64 darwin/386"
+OSARCH = "linux/amd64 linux/386 windows/amd64 windows/386 darwin/amd64 darwin/386"
 
 TLS_HOST ?= 'ligolo.lan'
 
@@ -26,14 +27,14 @@ certs: ## Build SSL certificates
 	cd certs && go run `go env GOROOT`/src/crypto/tls/generate_cert.go -ecdsa-curve P256 -ed25519 -host $(TLS_HOST)
 
 build: ## Build for the current architecture.
-	go build -ldflags $(LDFLAGS) -gcflags $(GCFLAGS) -tags $(TAGS) -o bin/$(RELAY_BINARY) $(RELAY_SOURCE) && \
-	go build -ldflags $(LDFLAGS) -gcflags $(GCFLAGS) -tags $(TAGS) -o bin/$(LIGOLO_BINARY) $(LIGOLO_SOURCE)
+	go build -ldflags $(LDFLAGS) -gcflags $(GCFLAGS) -tags $(TAGS) -o bin/$(CLIENT_BINARY) $(CLIENT_SOURCE) && \
+	go build -ldflags $(LDFLAGS) -gcflags $(GCFLAGS) -tags $(TAGS) -o bin/$(SERVER_BINARY) $(SERVER_SOURCE)
 
 build-all: ## Build for every architectures.
-	gox -osarch=$(OSARCH) -ldflags=$(LDFLAGS) -gcflags=$(GCFLAGS) -tags $(TAGS) -output "bin/$(LIGOLO_BINARY)_{{.OS}}_{{.Arch}}" $(LIGOLO_SOURCE)
-	gox -osarch=$(OSARCH) -ldflags=$(LDFLAGS) -gcflags=$(GCFLAGS) -tags $(TAGS) -output "bin/$(RELAY_BINARY)_{{.OS}}_{{.Arch}}" $(RELAY_SOURCE)
+	gox -osarch=$(OSARCH) -ldflags=$(LDFLAGS) -gcflags=$(GCFLAGS) -tags $(TAGS) -output "bin/$(SERVER_BINARY)_{{.OS}}_{{.Arch}}" $(SERVER_SOURCE)
+	gox -osarch=$(OSARCH) -ldflags=$(LDFLAGS) -gcflags=$(GCFLAGS) -tags $(TAGS) -output "bin/$(CLIENT_BINARY)_{{.OS}}_{{.Arch}}" $(CLIENT_SOURCE)
 
 clean:
 	rm -rf certs
-	rm bin/$(LIGOLO_BINARY)_*
-	rm bin/$(RELAY_BINARY)_*
+	rm bin/$(SERVER_BINARY)_*
+	rm bin/$(CLIENT_BINARY)_*
