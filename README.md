@@ -25,7 +25,7 @@
 
 ### TL;DR
 
-- 获取已编译的二进制文件 [release](https://github.com/funnywolf/ligolo/releases)
+- 获取已编译的二进制文件 [release](https://github.com/FunnyWolf/ligolo/releases)
 
 - 在你的VPS主机中.
 
