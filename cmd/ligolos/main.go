@@ -41,7 +41,7 @@ func NewLigoloRelay(localServer string, relayServer string, certFile string, key
 // Start listening for local and relay connections
 func (ligolo LigoloRelay) Start() {
 
-	logrus.WithFields(logrus.Fields{"localserver": ligolo.LocalServer, "relayserver": ligolo.RelayServer}).Println("Ligolo server started.")
+	logrus.WithFields(logrus.Fields{"socks5server": ligolo.LocalServer, "ligoloserver": ligolo.RelayServer}).Println("Ligolo server started.")
 	go ligolo.startRelayHandler()
 	ligolo.startLocalHandler()
 }

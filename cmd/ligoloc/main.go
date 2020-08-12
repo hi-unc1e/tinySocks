@@ -20,7 +20,7 @@ var (
 )
 
 func main() {
-	relayServer := flag.String("s", "example.com:443", "The relay server (the connect-back address)")
+	relayServer := flag.String("s", "example.com:443", "The ligolo server (the connect-back address)")
 	flag.Parse()
 	for {
 		err := StartLigolo(*relayServer)
