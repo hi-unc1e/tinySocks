@@ -1,29 +1,105 @@
 package main
 
 import (
+	"bufio"
 	"crypto/tls"
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"github.com/armon/go-socks5"
 	"github.com/hashicorp/yamux"
 	"github.com/sirupsen/logrus"
-	"io"
 	"net"
+	"net/http"
+	"net/url"
 	"time"
+
+	"golang.org/x/net/proxy"
 )
 
-var tlsFingerprint string
+type ProxyAuth struct {
+	Enable   bool
+	Username string
+	Passwd   string
+}
 
-var (
-	ErrInvalidServerCert = fmt.Errorf("invalid TLS server certificate")
-	ErrInvalidPinnedCert = fmt.Errorf("invalid TLS pinned certificate")
-)
+func DialTcpByProxy(proxyStr string, addr string) (c net.Conn, err error) {
+	var proxyUrl *url.URL
+	if proxyUrl, err = url.Parse(proxyStr); err != nil {
+		return
+	}
+
+	auth := &ProxyAuth{}
+	if proxyUrl.User != nil {
+		auth.Enable = true
+		auth.Username = proxyUrl.User.Username()
+		auth.Passwd, _ = proxyUrl.User.Password()
+	}
+
+	switch proxyUrl.Scheme {
+	case "http":
+		return DialTcpByHttpProxy(proxyUrl.Host, addr, auth)
+	case "socks5":
+		return DialTcpBySocks5Proxy(proxyUrl.Host, addr, auth)
+	default:
+		err = fmt.Errorf("Proxy URL scheme must be http or socks5, not [%s]", proxyUrl.Scheme)
+		return
+	}
+}
+
+func DialTcpByHttpProxy(proxyHost string, dstAddr string, auth *ProxyAuth) (c net.Conn, err error) {
+	if c, err = net.Dial("tcp", proxyHost); err != nil {
+		return
+	}
+
+	req, err := http.NewRequest("CONNECT", "http://"+dstAddr, nil)
+	if err != nil {
+		return
+	}
+	if auth.Enable {
+		req.Header.Set("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(auth.Username+":"+auth.Passwd)))
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+	req.Write(c)
+
+	resp, err := http.ReadResponse(bufio.NewReader(c), req)
+	if err != nil {
+		return nil, err
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		err = fmt.Errorf("DialTcpByHttpProxy error, StatusCode [%d]", resp.StatusCode)
+		return
+	}
+	return
+}
+
+func DialTcpBySocks5Proxy(proxyHost string, dstAddr string, auth *ProxyAuth) (c net.Conn, err error) {
+	var s5Auth *proxy.Auth
+	if auth.Enable {
+		s5Auth = &proxy.Auth{
+			User:     auth.Username,
+			Password: auth.Passwd,
+		}
+	}
+
+	dialer, err := proxy.SOCKS5("tcp", proxyHost, s5Auth, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if c, err = dialer.Dial("tcp", dstAddr); err != nil {
+		return
+	}
+	return
+}
 
 func main() {
-	relayServer := flag.String("s", "example.com:443", "The ligolo server (the connect-back address)")
+	relayServer := flag.String("s", "", "The ligolo server (the connect-back address)(e.g. example.com:443)")
+	proxyStr := flag.String("proxy", "", "Use proxy to connect ligolo server(e.g. http://user:passwd@192.168.1.128:8080 socks5://user:passwd@192.168.1.128:1080)")
 	flag.Parse()
 	for {
-		err := StartLigolo(*relayServer)
+		err := StartLigolo(*relayServer, *proxyStr)
 		if err != nil {
 			logrus.Error(err)
 		}
@@ -32,14 +108,26 @@ func main() {
 	}
 }
 
-func StartLigolo(relayServer string) error {
+func StartLigolo(relayServer string, proxyStr string) error {
 	var socks *socks5.Server
 	logrus.Infoln("Connecting to ligolo server...")
-
 	config := &tls.Config{InsecureSkipVerify: true}
-	conn, err := tls.Dial("tcp", relayServer, config)
-	if err != nil {
-		return err
+	var conn net.Conn
+	var err error
+
+	if proxyStr == "" {
+		conn, err = tls.Dial("tcp", relayServer, config)
+		if err != nil {
+			return err
+		}
+
+	} else {
+		logrus.Infoln("Using proxy")
+		conn, err = DialTcpByProxy(proxyStr, relayServer)
+		if err != nil {
+			return err
+		}
+		conn = tls.Client(conn, config)
 	}
 	socks, err = startSocksProxy()
 	if err != nil {
@@ -63,6 +151,7 @@ func StartLigolo(relayServer string) error {
 		// When no targetServer are specified, starts a socks5 proxy
 		go socks.ServeConn(stream)
 	}
+
 }
 
 func startSocksProxy() (*socks5.Server, error) {
@@ -73,24 +162,4 @@ func startSocksProxy() (*socks5.Server, error) {
 		return nil, err
 	}
 	return socks, nil
-}
-
-func handleRelay(src net.Conn, dst net.Conn) {
-	stop := make(chan bool, 2)
-
-	go relay(src, dst, stop)
-	go relay(dst, src, stop)
-
-	select {
-	case <-stop:
-		return
-	}
-}
-
-func relay(src net.Conn, dst net.Conn, stop chan bool) {
-	io.Copy(dst, src)
-	dst.Close()
-	src.Close()
-	stop <- true
-	return
 }
