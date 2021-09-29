@@ -94,17 +94,17 @@ Refer to the compilation method of the original ligolo
 
 ## Features
 
--TLS 1.3 encrypted tunnel
--Multi-platform (Windows / Linux / Mac /...)
--Multiple connection multiplexing (1 TCP connection transmits all traffic)
--SOCKS5 proxy
+- TLS 1.3 encrypted tunnel
+- Multi-platform (Windows / Linux / Mac /...)
+- Multiple connection multiplexing (1 TCP connection transmits all traffic)
+- SOCKS5 proxy
 
 ## To Do
 
--Better timeout mechanism
--SOCKS5 UDP support
--mTLS mutual authentication
--Reverse port mapping (mapping intranet port to internet)
+- Better timeout mechanism
+- SOCKS5 UDP support
+- mTLS mutual authentication
+- Reverse port mapping (mapping intranet port to internet)
 
 ## Licensing
 
