@@ -9,7 +9,7 @@ CLIENT_BINARY=ligoloc
 SERVER_BINARY=ligolos
 TAGS=release
 
-OSARCH = "linux/amd64 linux/386 windows/amd64 windows/386 darwin/amd64 darwin/386"
+OSARCH = "linux/amd64 linux/386 windows/amd64 windows/386 darwin/amd64"
 
 TLS_HOST ?= 'ligolo.lan'
 

@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	localServer := flag.String("s5", "127.0.0.1:1080", "The local socks5 server address (your proxychains parameter)")
+	localServer := flag.String("p", "127.0.0.1:1080", "The local socks5 server address or ip:port to connect")
 	relayServer := flag.String("l", "0.0.0.0:443", "The relay server listening address (the connect-back address)")
 	certFile := flag.String("cert", "cert.pem", "The TLS server certificate,Unnecessary")
 	keyFile := flag.String("key", "key.pem", "The TLS server key,Unnecessary")

@@ -9,6 +9,7 @@ import (
 	"github.com/armon/go-socks5"
 	"github.com/hashicorp/yamux"
 	"github.com/sirupsen/logrus"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -95,11 +96,12 @@ func DialTcpBySocks5Proxy(proxyHost string, dstAddr string, auth *ProxyAuth) (c 
 }
 
 func main() {
-	relayServer := flag.String("s", "", "The ligolo server (the connect-back address)(e.g. example.com:443)")
+	relayServer := flag.String("s", "", "The ligolo server ip:port (e.g. example.com:443)")
+	targetServer := flag.String("t", "", "The destination server ip:port (e.g. 192.168.1.3:3389, 192.168.1.3:22, etc.) - when not specified, Ligolo starts a socks5 proxy server")
 	proxyStr := flag.String("proxy", "", "Use proxy to connect ligolo server(e.g. http://user:passwd@192.168.1.128:8080 socks5://user:passwd@192.168.1.128:1080)")
 	flag.Parse()
 	for {
-		err := StartLigolo(*relayServer, *proxyStr)
+		err := StartLigolo(*relayServer, *targetServer, *proxyStr)
 		if err != nil {
 			logrus.Error(err)
 		}
@@ -108,7 +110,7 @@ func main() {
 	}
 }
 
-func StartLigolo(relayServer string, proxyStr string) error {
+func StartLigolo(relayServer string, targetServer string, proxyStr string) error {
 	var socks *socks5.Server
 	logrus.Infoln("Connecting to ligolo server...")
 	config := &tls.Config{InsecureSkipVerify: true}
@@ -149,7 +151,16 @@ func StartLigolo(relayServer string, proxyStr string) error {
 		}
 		logrus.WithFields(logrus.Fields{"active_sessions": session.NumStreams()}).Println("Accepted new connection !")
 		// When no targetServer are specified, starts a socks5 proxy
-		go socks.ServeConn(stream)
+		if targetServer == "" {
+			go socks.ServeConn(stream)
+		} else {
+			proxyConn, err := net.Dial("tcp", targetServer)
+			if err != nil {
+				logrus.Errorf("Error creating Proxy TCP connection ! Error : %s\n", err)
+				return err
+			}
+			go handleRelay(stream, proxyConn)
+		}
 	}
 
 }
@@ -162,4 +173,24 @@ func startSocksProxy() (*socks5.Server, error) {
 		return nil, err
 	}
 	return socks, nil
+}
+
+func handleRelay(src net.Conn, dst net.Conn) {
+	stop := make(chan bool, 2)
+
+	go relay(src, dst, stop)
+	go relay(dst, src, stop)
+
+	select {
+	case <-stop:
+		return
+	}
+}
+
+func relay(src net.Conn, dst net.Conn, stop chan bool) {
+	io.Copy(dst, src)
+	dst.Close()
+	src.Close()
+	stop <- true
+	return
 }
